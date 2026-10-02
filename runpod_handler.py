@@ -1,5 +1,10 @@
 import os
 import sys
+
+# Desativa o sistema Xet do HuggingFace (causador do 'File reconstruction error')
+os.environ["HF_HUB_DISABLE_XET"] = "1"
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+
 import json
 import time
 import shutil
@@ -25,30 +30,38 @@ AVATAR_CHECKPOINT_DIR = WEIGHTS_BASE / "LongCat-Video-Avatar-1.5"
 FOUNDATION_CHECKPOINT_DIR = WEIGHTS_BASE / "LongCat-Video"
 
 def ensure_models_downloaded():
-    """Garante que os pesos do LongCat-Video e do LongCat-Video-Avatar-1.5 estejam prontos."""
+    """Garante que apenas os pesos estritamente necessários para o Avatar 1.5 sejam baixados."""
     WEIGHTS_BASE.mkdir(parents=True, exist_ok=True)
     
-    # 1. Base Foundation Model (Necessário para Tokenizer, UMT5 e VAE)
+    # 1. Base Foundation Model (Baixa APENAS Tokenizer, UMT5 e VAE - Ignora DiT base não usado)
     if not (FOUNDATION_CHECKPOINT_DIR / "tokenizer").exists():
-        print(f"[RunPod Worker] Baixando pesos base: meituan-longcat/LongCat-Video para {FOUNDATION_CHECKPOINT_DIR}...")
+        print(f"[RunPod Worker] Baixando componentes base essenciais (Tokenizer, Text Encoder, VAE) para {FOUNDATION_CHECKPOINT_DIR}...")
         snapshot_download(
             repo_id="meituan-longcat/LongCat-Video",
+            allow_patterns=["tokenizer/*", "text_encoder/*", "vae/*"],
             local_dir=str(FOUNDATION_CHECKPOINT_DIR),
             local_dir_use_symlinks=False,
             resume_download=True
         )
-        print("[RunPod Worker] Base LongCat-Video baixada com sucesso!")
+        print("[RunPod Worker] Componentes base essenciais baixados com sucesso!")
 
-    # 2. Avatar 1.5 Model (Necessário para DiT, Whisper e Separator)
+    # 2. Avatar 1.5 Model (Baixa APENAS scheduler, INT8 DiT, LoRA distill, Whisper e Vocal Separator)
     if not (AVATAR_CHECKPOINT_DIR / "scheduler").exists():
-        print(f"[RunPod Worker] Baixando pesos avatar: meituan-longcat/LongCat-Video-Avatar-1.5 para {AVATAR_CHECKPOINT_DIR}...")
+        print(f"[RunPod Worker] Baixando pesos do Avatar 1.5 otimizados para {AVATAR_CHECKPOINT_DIR}...")
         snapshot_download(
             repo_id="meituan-longcat/LongCat-Video-Avatar-1.5",
+            allow_patterns=[
+                "scheduler/*",
+                "base_model_int8/*",
+                "lora/*",
+                "whisper-large-v3/*",
+                "vocal_separator/*"
+            ],
             local_dir=str(AVATAR_CHECKPOINT_DIR),
             local_dir_use_symlinks=False,
             resume_download=True
         )
-        print("[RunPod Worker] LongCat-Video-Avatar-1.5 baixado com sucesso!")
+        print("[RunPod Worker] Pesos do Avatar 1.5 prontos!")
 
 
 def download_asset(url: str, target_path: Path):
